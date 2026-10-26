@@ -1,0 +1,49 @@
+# Gradle / Android
+.gradle/
+build/
+*/build/
+local.properties
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 模型与数据集（YOLO11n INT8 ONNX 与 Vosk 中文模型已随仓库提交，此处仅排除训练产物）
+checkpoints/
+datasets/
+runs/
+*.pt
+*.pth
+*.rknn
+*.tflite
+
+# 采样数据与中间产物
+tools/online_3d/recordings/
+tools/online_3d/validation/
+tools/*/output/
+
+# 在线 3D 服务端的运行时数据（体素地图与模型文件，按需生成）
+online3d-server/maps/
+online3d-server/models/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 密钥与本地配置
+.env
+.env.*
+secrets.yaml
+*.keystore
+*.jks
+
+# 日志
+*.log
