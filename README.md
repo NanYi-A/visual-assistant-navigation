@@ -46,120 +46,158 @@
 
 | 依赖 | 版本要求 | 说明 |
 |---|---|---|
-| JDK | **21** | Android Gradle Plugin 8.x 需要 JDK 17+ |
-| Gradle | **8.14** | 仓库已带 `gradlew`，无需手动安装 |
-| Android SDK | compileSdk **35** / minSdk **29** | Android 10 及以上 |
-| 真机 | **必须支持 ARCore** | 需安装 Google Play Services for AR |
+| JDK | **21**（17+ 也可） | Android Gradle Plugin 8.x 需要 JDK 17 及以上 |
+| Gradle | **8.14** | **不用自己装**，仓库自带 `gradlew` 会自动下载 |
+| Android SDK | compileSdk **35** / minSdk **29** | 即 Android 10 及以上；SDK 用 Android Studio 装最省事 |
+| 真机 | **必须支持 ARCore** | 需装「Google Play Services for AR」 |
+
+**先自查一下**（命令在 Android Studio 的 Terminal 里跑）：
 
 ```bash
-# 验证 JDK 版本
+# ① JDK 版本要 ≥ 17
 java -version
+# 期望看到类似：openjdk version "21.0.5"
 
-# 验证 SDK（把路径改成你自己的）
-sdkmanager --list | grep "platforms;android-35"
+# ② Android SDK 路径（换成你自己的）
+#    Windows 通常是：C:\Users\<你的用户名>\AppData\Local\Android\Sdk
+#    macOS 通常是：~/Library/Android/sdk
+ls $ANDROID_HOME/platforms
+# 期望能看到 android-35 这一项；没有就去 SDK Manager 里装
 ```
+
+> 没装 Android Studio 也没关系 —— 只要有 JDK 21 + Android SDK 命令行工具 + `adb` 就能构建。
 
 ### 2. 克隆并配置
 
 ```bash
 git clone https://github.com/NanYi-A/visual-assistant-navigation.git
 cd visual-assistant-navigation
-
-# 2.1 创建 local.properties，指向你自己的 Android SDK
-cat > local.properties <<'EOF'
-sdk.dir=/path/to/your/Android/sdk
-EOF
-
-# 2.2 （可选）配置高德 Key —— 家庭在位检测功能需要
-#     到 https://lbs.amap.com/ 申请 Key，勾选"Web服务"
-#     授权 PackageName 填 cn.visualassistant.app
-echo "MapSdkKey=你的高德Key" >> local.properties
 ```
 
-> `local.properties` 已被 `.gitignore` 忽略，每个人的 SDK 路径和 Key 都不同，不会互相污染。
->
-> ⚠️ **Windows 用户注意**：这是 Java properties 格式，路径里的反斜杠要**写成两个**。
-> 写 `sdk.dir=C:\Users\you\AppData\Local\Android\sdk` 会报
-> `IOException: 文件名、目录名或卷标语法不正确`（Gradle 把 `\U` 当成转义序列了）。
-> 正确写法：`sdk.dir=C:\\Users\\you\\AppData\\Local\\Android\\sdk`
-> 或者干脆用正斜杠：`sdk.dir=C:/Users/you/AppData/Local/Android/sdk`
+**2.1 创建 `local.properties`，告诉 Gradle 你的 SDK 在哪**
 
-### 3. 运行单元测试（先验证代码没问题）
+```bash
+# Linux / macOS
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
+
+# Windows（把路径换成你自己的，注意反斜杠要写两个，或者干脆用正斜杠）
+echo "sdk.dir=C:/Users/你的用户名/AppData/Local/Android/Sdk" > local.properties
+```
+
+> ⚠️ **Windows 头号坑**：`local.properties` 是 Java properties 格式，反斜杠是转义字符。
+> 写成 `sdk.dir=C:\Users\you\AppData\Local\Android\sdk` 会报
+> `IOException: 文件名、目录名或卷标语法不正确`（Gradle 把 `\U` 当成转义序列了）。
+> **推荐直接用正斜杠** `C:/Users/you/...`，一劳永逸。
+>
+> 这个文件已被 `.gitignore` 忽略，每个人填自己的路径，不会互相污染。
+
+**2.2（可选）配置高德 Key —— 想用「家庭位置在位检测」才需要**
+
+1. 到 <https://lbs.amap.com/> 注册开发者 → 创建应用 → 添加 Key
+2. **服务平台必须选「Web服务」**（选错平台会报 `INVALID_USER_KEY`）
+3. 勾选「Web服务」类型时不用填域名白名单，但**建议配 IP 白名单**（填你常用出口 IP）
+4. 授权 PackageName 填 `cn.visualassistant.app`
+
+```bash
+echo "MapSdkKey=你的高德Web服务Key" >> local.properties
+```
+
+> 不配也能用，只是「我现在是否在家」这个判断不可用（其余功能不受影响）。
+
+### 3. 先跑单元测试（确认代码本身没问题）
 
 ```bash
 ./gradlew test
 ```
 
-预期输出 `BUILD SUCCESSFUL`，31 个测试文件覆盖协议栈、深度融合、风险决策、路径规划等核心逻辑。
+**预期输出**：`BUILD SUCCESSFUL`。这会跑完 **31 个测试文件**（覆盖协议栈、深度融合、风险分级、路径规划、门控与看门狗等核心逻辑）。
+
+第一次跑会下载 Gradle 和依赖，**耐心等 3–10 分钟**是正常的。后续就快了。
 
 ### 4. 构建 APK
 
 ```bash
-# Debug 版（带调试器，用于开发）
-./gradlew assembleDebug
-
-# Release 版（已开启 R8 混淆与资源压缩，体积小很多）
+# 推荐：release 版（R8 混淆 + 资源压缩，体积小、跑得快）
 ./gradlew assembleRelease
+
+# 或 debug 版（带调试器，方便断点调试）
+./gradlew assembleDebug
 ```
 
-产物位置：
+**产物位置**（注意有 **3 个**，因为按 CPU 架构分包了）：
 
 ```
-app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-app/build/outputs/apk/release/app-arm64-v8a-release.apk
+app/build/outputs/apk/release/
+├── app-arm64-v8a-release.apk     ← 80MB，现代手机都用这个
+├── app-armeabi-v7a-release.apk   ← 73MB，老旧 32 位手机
+└── app-x86_64-release.apk        ← 82MB，模拟器用（真机装不了）
 ```
 
-> **关于签名**：本仓库的 release 构建配置使用 Android 自带的 debug keystore 签名（`~/.android/debug.keystore`），因此 **clone 后无需任何私钥即可构建出能直接安装的 APK**。正式发布请自行创建 keystore，并在 `app/build.gradle.kts` 的 `signingConfigs` 中替换。
+**该装哪个？** 看你的手机 CPU 架构：
+
+```bash
+# 连上手机后查架构
+adb shell getprop ro.product.cpu.abi
+# 绝大多数现代手机输出：arm64-v8a   → 装 app-arm64-v8a-release.apk
+# 少数老手机输出：armeabi-v7a     → 装 app-armeabi-v7a-release.apk
+```
+
+> **为什么每个都有 80MB？** 因为内置了 YOLO11n INT8 ONNX 模型（3MB）+ Vosk 中文语音模型（42MB）+ 其他资源。`armeabi-v7a` 只是多带了一份兼容代码。
+>
+> **关于签名**：release 配置用的是 Android 自带的 debug keystore（`~/.android/debug.keystore`，首次构建自动生成），所以 **clone 后无需任何私钥就能构建出能直接安装的 APK**。要正式发布请自己创建 keystore，替换 `app/build.gradle.kts` 里的 `signingConfigs`。
 
 ### 5. 安装到手机
 
 ```bash
-# 用 adb 直接装（推荐）
+# 先连上手机（数据线 + 开发者选项里的 USB 调试）
+adb devices
+# 期望看到：XXXXXXXX    device
+
+# 安装（-r = 覆盖安装，保留数据）
 adb install -r app/build/outputs/apk/release/app-arm64-v8a-release.apk
 ```
 
-或把 APK 传到手机手动安装（需允许"安装未知来源应用"）。
+不想用 adb 的话，把 APK 传到手机点开安装，需要在系统里允许「安装未知来源应用」。
 
-**首次启动需要授权：**
-- 相机（实时帧采集与 ARCore 深度感知）
-- 麦克风（Vosk 离线语音识别）
+**首次启动要授权两样：**
+- 📷 **相机** —— 实时取景帧采集 + ARCore 深度感知
+- 🎤 **麦克风** —— Vosk 离线语音识别
 
 ### 6.（可选）配置在线 3D 后端
 
-若你想把手机端的体素地图同步到 PC 端做三维重建与可视化，仓库里的 `online3d-server/` 是一份 **Kotlin/JVM** 服务（VA3D 协议的服务端实现，含 9 个测试文件）：
+**先说结论：这一步不做，App 依然完全可用。** 本地建图、路径规划、语音播报全都在手机端跑。
+
+只有你想在电脑上看到三维重建结果、或想用重定位辅助时，才需要它。
+
+`online3d-server/` 是一份 **Kotlin/JVM** 服务（VA3D 协议的服务端实现，含 9 个测试文件）：
 
 ```bash
-# 需要 JDK 17+
+# 需要 JDK 17+，在仓库根目录执行
 ./gradlew :online3d-server:run --args="--port 38400"
 ```
 
-或手动运行：
-
-```bash
-cd online3d-server
-./gradlew build
-java -jar build/libs/online3d-server.jar --port 38400
-```
-
 启动后：
-- 默认监听 **38400** 端口（可用 `--port` 改）
-- 体素地图落在 `online3d-server/maps/`，模型文件在 `online3d-server/models/`（两者都是运行时数据，不入库，首次启动会自动创建）
+- 默认监听 **38400** 端口（用 `--port` 可改）
+- 体素地图写到 `online3d-server/maps/`，模型文件在 `online3d-server/models/`（都是运行时数据，不入库，首次启动自动创建）
 
-然后在 App 的在线 3D 设置页填入 PC 的局域网 IP（如 `192.168.1.100`）与端口。协议为自研的 VA3D 二进制格式（Magic `0x56413344` / VERSION 2 / 4 字节长度前缀 / 大端序），手机端做 revision 校验的增量同步，缺帧时请求全量快照。
+然后在 App 的在线 3D 设置页填入**电脑的局域网 IP**（如 `192.168.1.100`）与端口 `38400`。
 
-> 这个后端是**可选**的 —— 不启动它，手机端的本地建图与路径规划依然正常工作，只是失去"电脑端三维渲染"与重定位辅助。
+> 协议是自研的 VA3D 二进制格式（Magic `0x56413344` / VERSION 2 / 4 字节长度前缀 / 大端序），手机端做 revision 校验的增量同步，缺帧时请求全量快照。
 
 ### 7. 常见问题
 
 | 现象 | 原因与解决 |
 |---|---|
-| 启动后相机画面黑屏 | 设备不支持 ARCore，或未安装 Google Play Services for AR |
-| 提示"暂无可靠深度" | ARCore 深度需要室内有充足纹理；或深度流与置信流时间戳不同步（项目已用 `DepthStreamGate` 门控处理） |
-| 一直提示"位置未知" | 未配置 `MapSdkKey`，或在室内无 GPS 环境 |
-| 语音指令无响应 | 未授予麦克风权限；或飞行模式下需使用内置 Vosk 模型（已内置，不依赖网络） |
-| R8 构建报 `Missing class com.amap.ams.gnss.GnssSoftLocator` | `proguard-rules.pro` 中已加 `-dontwarn`，若仍报错请确认使用的是仓库内的规则文件 |
-| 构建报 `IOException: 文件名、目录名或卷标语法不正确` | `local.properties` 里的 `sdk.dir` 反斜杠没转义。Java properties 格式要求写成 `C:\\Users\\you\\...`，或直接用正斜杠 `C:/Users/you/...` |
-| 构建报"项目路径包含非 ASCII 字符" | Windows 下 Gradle 限制：把仓库克隆到纯英文路径（如 `D:\projects\visual-assistant-navigation`），或在 `gradle.properties` 加 `android.overridePathCheck=true` |
+| 构建报 `IOException: 文件名、目录名或卷标语法不正确` | `local.properties` 里 `sdk.dir` 的反斜杠没转义。改用正斜杠：`sdk.dir=C:/Users/you/AppData/Local/Android/sdk` |
+| 构建报"项目路径包含非 ASCII 字符" | Windows 下 Gradle 限制：把仓库克隆到**纯英文路径**（如 `D:\projects\visual-assistant-navigation`），或在 `gradle.properties` 加 `android.overridePathCheck=true` |
+| 构建报 `Missing class com.amap.ams.gnss.GnssSoftLocator` | `proguard-rules.pro` 里已加 `-dontwarn`。若仍报错，确认你用的是仓库内的规则文件（别自己另建一个） |
+| `./gradlew` 报 `JAVA_HOME is not set` | 装 JDK 21 并设环境变量：`export JAVA_HOME=/path/to/jdk-21`（Windows 在系统环境变量里加 `JAVA_HOME`） |
+| `./gradlew` 卡在下载依赖 / 一直转圈 | 首次构建要下 Gradle 8.14 + 全部依赖，国内网络建议配 Gradle 镜像（`~/.gradle/init.gradle`） |
+| 装 APK 提示「应用未安装」 | 装错架构了。x86_64 是模拟器专用的，真机必须用 `arm64-v8a` |
+| 启动后相机画面黑屏 | 设备不支持 ARCore，或没装「Google Play Services for AR」；也可能是没给相机权限 |
+| 提示"暂无可靠深度" | ARCore 深度需要室内有充足纹理（白墙、空旷地面效果最好）；项目已用 `DepthStreamGate` 处理时间戳不同步的情况 |
+| 一直提示"位置未知" | 没配 `MapSdkKey`，或室内无 GPS 环境（正常现象，不影响其他功能） |
+| 语音指令无响应 | 没给麦克风权限；飞行模式下也能用（Vosk 模型已内置，不依赖网络） |
 
 ## 功能一览
 
